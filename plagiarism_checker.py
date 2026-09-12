@@ -16,10 +16,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-# def read_text(file_path):
-#     """读取文本文件，忽略编码错误。"""
-#     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-#         return f.read()
 def read_text(file_path):
     """读取文件内容，支持 .txt 和 .docx"""
     ext = os.path.splitext(file_path)[1].lower()
