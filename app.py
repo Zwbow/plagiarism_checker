@@ -13,8 +13,20 @@ import difflib
 import re
 import docx
 
-
 # ================= 核心算法函数 =================
+
+def read_uploaded_file(uploaded_file):
+    """从 Streamlit 上传的文件对象中读取文本，支持 .txt 和 .docx"""
+    ext = os.path.splitext(uploaded_file.name)[1].lower()
+    if ext == '.txt':
+        return uploaded_file.read().decode('utf-8', errors='ignore')
+    elif ext == '.docx':
+        doc = docx.Document(uploaded_file)
+        return '\n'.join([p.text for p in doc.paragraphs if p.text.strip()])
+    else:
+        st.warning(f"⚠️ 跳过不支持的文件格式：{uploaded_file.name}")
+        return ''
+
 def read_text(file_path):
     """通过路径读取本地文件"""
     ext = os.path.splitext(file_path)[1].lower()
@@ -34,28 +46,9 @@ def collect_files(folder_path):
         if os.path.isfile(full_path):
             files.append(full_path)
     return files
-def read_uploaded_file(uploaded_file):
-    """从 Streamlit 上传的文件对象中读取文本，支持 .txt 和 .docx"""
-    ext = os.path.splitext(uploaded_file.name)[1].lower()
-    if ext == '.txt':
-        return uploaded_file.read().decode('utf-8', errors='ignore')
-    elif ext == '.docx':
-        doc = docx.Document(uploaded_file)
-        return '\n'.join([p.text for p in doc.paragraphs if p.text.strip()])
-    else:
-        st.warning(f"⚠️ 跳过不支持的文件格式：{uploaded_file.name}")
-        return ''
-
 
 def cut_words(text):
     return ' '.join(jieba.lcut(text))
-
-
-def find_common_keywords(text1, text2, top_n=10):
-    kw1 = set(jieba.analyse.extract_tags(text1, topK=top_n))
-    kw2 = set(jieba.analyse.extract_tags(text2, topK=top_n))
-    return list(kw1 & kw2)
-
 
 def calc_similarity(text_a, text_b):
     vectorizer = TfidfVectorizer()
@@ -63,15 +56,13 @@ def calc_similarity(text_a, text_b):
     sim = cosine_similarity(matrix[0:1], matrix[1:2])
     return sim[0][0] * 100
 
-
 def split_sentences(text):
+    """把长文本按句号、问号、感叹号、换行切分成句子列表"""
     parts = re.split(r'(?<=[。！？\n])', text)
     return [s.strip() for s in parts if len(s.strip()) > 5]
 
-
-def find_duplicate_sentences(text_a, text_b, threshold=0.8):
-    sentences_a = split_sentences(text_a)
-    sentences_b = split_sentences(text_b)
+def find_duplicate_sentences_from_lists(sentences_a, sentences_b, threshold=0.8):
+    """直接在两个句子列表之间做比对，避免重复分句"""
     duplicates = []
     for s_a in sentences_a:
         for s_b in sentences_b:
@@ -80,7 +71,6 @@ def find_duplicate_sentences(text_a, text_b, threshold=0.8):
                 duplicates.append((s_a, s_b, ratio))
                 break
     return duplicates
-
 
 # ================= 网页 UI 与 主逻辑 =================
 
@@ -92,7 +82,7 @@ st.markdown("上传你的论文和比对文献库，一键生成查重报告。"
 st.subheader("1. 上传待查论文")
 target_file = st.file_uploader("请上传你要查重的论文（支持 .txt, .docx）", type=['txt', 'docx'], key="target")
 
-# 2. 上传比对文献库
+# 2. 选择比对文献库
 st.subheader("2. 选择比对文献库")
 
 # 增加一个单选框，让用户选择输入方式
@@ -126,18 +116,20 @@ elif input_mode == "输入本地文件夹路径":
 if st.button("🚀 开始查重", use_container_width=True):
     if not target_file:
         st.error("❌ 请先上传待查论文！")
-    elif not source_texts:  # 修改1：改为判断 source_texts 字典
+    elif not source_texts:
         st.error("❌ 请至少提供一篇比对文献（上传文件或输入文件夹路径）！")
     else:
         with st.spinner("正在比对中，请稍候..."):
             target_text = read_uploaded_file(target_file)
             target_cut = cut_words(target_text)
 
+            # 【优化核心】预先计算待查论文的关键词和句子，只算一次！
+            target_keywords = set(jieba.analyse.extract_tags(target_text, topK=8))
+            target_sentences = split_sentences(target_text)
+
             results = {}
             report_data = {}
             progress_bar = st.progress(0)
-
-            # 修改2：将字典转为列表进行遍历，直接获取文件名和内容
             items = list(source_texts.items())
 
             for idx, (file_name, other_text) in enumerate(items):
@@ -148,8 +140,13 @@ if st.button("🚀 开始查重", use_container_width=True):
                 score = calc_similarity(target_cut, other_cut)
                 results[file_name] = score
 
-                common = find_common_keywords(target_text, other_text, top_n=8)
-                dup_sentences = find_duplicate_sentences(target_text, other_text, threshold=0.8)
+                # 使用预计算的关键词求交集（不用再算 target 的）
+                other_keywords = set(jieba.analyse.extract_tags(other_text, topK=8))
+                common = list(target_keywords & other_keywords)
+
+                # 使用预计算的句子列表做比对
+                other_sentences = split_sentences(other_text)
+                dup_sentences = find_duplicate_sentences_from_lists(target_sentences, other_sentences, threshold=0.8)
 
                 report_data[file_name] = {
                     'score': score,
@@ -157,7 +154,7 @@ if st.button("🚀 开始查重", use_container_width=True):
                     'duplicates': dup_sentences
                 }
 
-                progress_bar.progress((idx + 1) / len(items))  # 进度条更新
+                progress_bar.progress((idx + 1) / len(items))
 
             # ===== 展示网页端结果 =====
             st.success("✅ 查重完成！")
@@ -173,8 +170,6 @@ if st.button("🚀 开始查重", use_container_width=True):
                 st.markdown("### 📄 各文件详细结果")
                 for name, data in sorted(report_data.items(), key=lambda x: x[1]['score'], reverse=True):
                     score = data['score']
-                    color = "red" if score > 50 else "orange" if score > 20 else "green"
-
                     with st.expander(f"📄 {name} —— 相似度：{score:.2f}%"):
                         st.markdown(
                             f"**📌 高频重复词汇：** {', '.join(data['common_words']) if data['common_words'] else '无'}")
