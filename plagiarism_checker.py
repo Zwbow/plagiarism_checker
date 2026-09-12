@@ -101,6 +101,7 @@ def main():
     files = collect_files(folder)
 
     results = {}
+    report_data = {}  # 用于存储详细报告数据
 
     for path in files:
         # 跳过自身
@@ -140,17 +141,90 @@ def main():
                 print(f"   [相似度] {ratio*100:.1f}%\n")
         else:
             print("✅ 未发现高度重复的句子。")
-    # 极值报告
-    if results:
-        ranked = sorted(results.items(), key=lambda x: x[1], reverse=True)
-        print("=" * 40)
-        print("📊 查重率极值报告")
-        print("=" * 40)
-        print(f"🔴 最高相似度：{ranked[0][0]} —— {ranked[0][1]:.2f}%")
-        print(f"🟢 最低相似度：{ranked[-1][0]} —— {ranked[-1][1]:.2f}%")
-        print("=" * 40)
-    else:
-        print("❌ 文件夹里除了待查文件，没有其他文件可比较。")
+        # 存入报告数据
+        report_data[file_name] = {
+            'score': score,
+            'common_words': common,
+            'duplicates': dup_sentences
+        }
+        # 极值报告
+        if results:
+            ranked = sorted(results.items(), key=lambda x: x[1], reverse=True)
+            print("=" * 40)
+            print("📊 查重率极值报告")
+            print("=" * 40)
+            print(f"🔴 最高相似度：{ranked[0][0]} —— {ranked[0][1]:.2f}%")
+            print(f"🟢 最低相似度：{ranked[-1][0]} —— {ranked[-1][1]:.2f}%")
+            print("=" * 40)
+
+            # ===== 生成 HTML 可视化报告 =====
+            html = '''<!DOCTYPE html>
+    <html><head><meta charset="utf-8"><title>查重报告</title>
+    <style>
+        body { font-family: "微软雅黑", sans-serif; padding: 30px; background: #f8f9fa; color: #333; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #2c3e50; }
+        .summary { background: #e8f4fd; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+        .file-card { border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
+        .file-header { background: #f1f3f5; padding: 15px; font-weight: bold; display: flex; justify-content: space-between; }
+        .file-body { padding: 15px; }
+        .high { color: #e74c3c; font-weight: bold; }
+        .mid { color: #e67e22; }
+        .low { color: #27ae60; }
+        .dup-box { background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .dup-box p { margin: 5px 0; }
+        .match { background-color: #ffcccc; padding: 2px 4px; border-radius: 3px; }
+    </style></head><body>
+    <div class="container">
+    <h1>📄 论文查重报告</h1>
+    <div class="summary">
+        <p><b>待查文件：</b>''' + target + '''</p>
+        <p><b>比对文件总数：</b>''' + str(len(report_data)) + ''' 个</p>
+        <p><b>🔴 最高相似度：</b>''' + ranked[0][0] + ' —— ' + f'{ranked[0][1]:.2f}%' + '''</p>
+        <p><b>🟢 最低相似度：</b>''' + ranked[-1][0] + ' —— ' + f'{ranked[-1][1]:.2f}%' + '''</p>
+    </div>
+    '''
+
+            # 遍历每个文件，把结果拼进去
+            for name, data in sorted(report_data.items(), key=lambda x: x[1]['score'], reverse=True):
+                score_color = 'high' if data['score'] > 50 else 'mid' if data['score'] > 20 else 'low'
+                html += f'''
+                <div class="file-card">
+                    <div class="file-header">
+                        <span>📄 {name}</span>
+                        <span class="{score_color}">相似度：{data['score']:.2f}%</span>
+                    </div>
+                    <div class="file-body">
+                '''
+                if data['common_words']:
+                    html += f"<p><b>📌 高频重复词汇：</b>{', '.join(data['common_words'])}</p>"
+                if data['duplicates']:
+                    html += "<p><b>🔍 疑似抄袭句子：</b></p>"
+                    for s_a, s_b, ratio in data['duplicates']:
+                        html += f'''
+                        <div class="dup-box">
+                            <p>📝 原文：<span class="match">{s_a}</span></p>
+                            <p>📄 对比：<span class="match">{s_b}</span></p>
+                            <p style="color:#888; font-size:12px;">相似度：{ratio * 100:.1f}%</p>
+                        </div>
+                        '''
+                else:
+                    html += "<p>✅ 未发现高度重复的句子。</p>"
+                html += "</div></div>"
+
+            html += "</div></body></html>"
+
+            # 写入文件
+            with open('查重报告.html', 'w', encoding='utf-8') as f:
+                f.write(html)
+
+            print("\n" + "=" * 40)
+            print("✅ 可视化报告已生成！")
+            print("👉 请用浏览器双击打开项目文件夹下的：查重报告.html")
+            print("=" * 40)
+
+        else:
+            print("❌ 文件夹里除了待查文件，没有其他文件可比较。")
 
 
 if __name__ == "__main__":
