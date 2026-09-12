@@ -1,0 +1,4 @@
+jieba
+scikit-learn
+python-docx
+streamlit
