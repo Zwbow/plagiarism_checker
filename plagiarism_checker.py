@@ -14,6 +14,9 @@ import jieba
 import jieba.analyse
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import difflib
+import re
+
 
 
 def read_text(file_path):
@@ -68,6 +71,28 @@ def calc_similarity(text_a, text_b):
     return sim[0][0] * 100
 
 
+def split_sentences(text):
+    """把长文本按句号、问号、感叹号、换行切分成句子列表"""
+    # 用正则按标点分句，同时保留标点符号
+    parts = re.split(r'(?<=[。！？\n])', text)
+    # 去掉空字符串和极其短的句子
+    return [s.strip() for s in parts if len(s.strip()) > 5]
+
+
+def find_duplicate_sentences(text_a, text_b, threshold=0.8):
+    """找出两篇文章中相似度超过阈值的句子"""
+    sentences_a = split_sentences(text_a)
+    sentences_b = split_sentences(text_b)
+    duplicates = []
+
+    for s_a in sentences_a:
+        for s_b in sentences_b:
+            ratio = difflib.SequenceMatcher(None, s_a, s_b).ratio()
+            if ratio >= threshold:
+                duplicates.append((s_a, s_b, ratio))
+                break  # 每句 A 只匹配一次 B，找到就跳过
+    return duplicates
+
 def main():
     target = input('请输入你想要查重的文件: ').strip()
     folder = input('请输入文件夹位置: ').strip()
@@ -83,6 +108,7 @@ def main():
             continue
 
         other_text = read_text(path)
+
         if not other_text.strip():
             print(f"⚠️ 跳过空文件：{path}")
             continue
@@ -104,7 +130,16 @@ def main():
         for word in common:
             print(f"   - {word}")
         print()
-
+        # ==== 新增：逐句标红（模拟） ====
+        dup_sentences = find_duplicate_sentences(target_text, other_text, threshold=0.8)
+        if dup_sentences:
+            print(f"🔍 发现 {len(dup_sentences)} 处疑似高度重复的句子（相似度 > 80%）：")
+            for s_a, s_b, ratio in dup_sentences[:5]:  # 最多打印前5句，避免刷屏
+                print(f"   [原文] {s_a}")
+                print(f"   [对比] {s_b}")
+                print(f"   [相似度] {ratio*100:.1f}%\n")
+        else:
+            print("✅ 未发现高度重复的句子。")
     # 极值报告
     if results:
         ranked = sorted(results.items(), key=lambda x: x[1], reverse=True)
