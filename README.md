@@ -1,4 +1,4 @@
-
+🚀 **在线体验地址**：[点击这里立即使用](https://plagiarismchecker-bwqzeo37z4yhlz948r5e9s.streamlit.app/)
 # 论文查重工具 (Plagiarism Checker)
 
 一个基于 Python 的本地论文查重脚本，用 TF-IDF + 余弦相似度批量比对一篇论文与本地文件夹中所有文本的相似度。
