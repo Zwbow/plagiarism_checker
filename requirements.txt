@@ -2,3 +2,4 @@ jieba
 scikit-learn
 python-docx
 streamlit
+sentence-transformers
