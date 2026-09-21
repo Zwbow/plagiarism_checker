@@ -1,3 +1,16 @@
+## 🌟 核心亮点：传统字面查重 vs AI 语义查重
+
+传统的查重工具（如 TF-IDF）只能查“字面抄袭”，一旦把“公司”改成“企业”，把“融资”改成“资金注入”，传统算法就会失效。
+
+本工具引入了 **Sentence-BERT (深度学习模型)**，能够真正理解句子的含义。
+
+**实测数据对比（针对深度改写）**：
+*   传统字面相似度：**1.68%**（认为完全不同）
+*   AI 语义相似度：**68.04%**（精准识破改写，成功定位疑似抄袭段落）
+
+📸 **效果截图**：
+（在这里上传一张你刚才发我的那张带匹配结果的截图）<img width="1100" height="622" alt="image" src="https://github.com/user-attachments/assets/15166fc4-8ede-4861-9524-5adc3142eb5b" />
+
 🚀 **在线体验地址**：[点击这里立即使用](https://plagiarismchecker-bwqzeo37z4yhlz948r5e9s.streamlit.app/)
 # 论文查重工具 (Plagiarism Checker)
 
